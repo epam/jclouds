@@ -30,16 +30,16 @@
   <packaging>pom</packaging>
   <name>jclouds providers project</name>
   <modules>
-    <module>aws-cloudwatch</module>
+    <!-- <module>aws-cloudwatch</module>
     <module>aws-ec2</module>
-    <module>aws-route53</module>
+    <module>aws-route53</module> -->
     <module>aws-s3</module>
-    <module>aws-sqs</module>
-    <module>aws-sts</module>
+    <!-- <module>aws-sqs</module>
+    <module>aws-sts</module> -->
     <module>azureblob</module>
-    <module>azurecompute-arm</module>
+    <!-- <module>azurecompute-arm</module> -->
     <module>b2</module>
-    <module>digitalocean2</module>
+    <!-- <module>digitalocean2</module>
     <module>dynect</module>
     <module>elastichosts-ams-e</module>
     <module>elastichosts-dal-a</module>
@@ -54,9 +54,9 @@
     <module>elastichosts-tor-p</module>
     <module>glesys</module>
     <module>go2cloud-jhb1</module>
-    <module>gogrid</module>
+    <module>gogrid</module> -->
     <module>google-cloud-storage</module>
-    <module>google-compute-engine</module>
+    <!-- <module>google-compute-engine</module>
     <module>openhosting-east1</module>
     <module>packet</module>
     <module>profitbricks</module>
@@ -65,10 +65,10 @@
     <module>rackspace-clouddatabases-uk</module>
     <module>rackspace-clouddatabases-us</module>
     <module>rackspace-clouddns-uk</module>
-    <module>rackspace-clouddns-us</module>
+    <module>rackspace-clouddns-us</module> -->
     <module>rackspace-cloudfiles-uk</module>
     <module>rackspace-cloudfiles-us</module>
-    <module>rackspace-cloudloadbalancers-uk</module>
+    <!-- <module>rackspace-cloudloadbalancers-uk</module>
     <module>rackspace-cloudloadbalancers-us</module>
     <module>rackspace-cloudnetworks-uk</module>
     <module>rackspace-cloudnetworks-us</module>
@@ -77,6 +77,6 @@
     <module>serverlove-z1-man</module>
     <module>skalicloud-sdg-my</module>
     <module>softlayer</module>
-    <module>ultradns-ws</module>
+    <module>ultradns-ws</module> -->
   </modules>
 </project>
