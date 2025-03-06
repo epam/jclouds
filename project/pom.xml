@@ -726,7 +726,7 @@
               <exclude>**/src/test/resources/**/*.gz</exclude>
               <exclude>**/src/test/resources/**/*.xml</exclude>
               <exclude>**/src/test/resources/**/*.crt</exclude>
-              <exclude>src/test/resources/html/*.html</exclude>
+              <exclude>**/src/test/resources/html/*.html</exclude>
 
               <!-- META-INF/services files -->
               <exclude>**/services/*LoggingModule</exclude>
