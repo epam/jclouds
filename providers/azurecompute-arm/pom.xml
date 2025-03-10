@@ -23,7 +23,7 @@
   <parent>
     <groupId>org.apache.jclouds</groupId>
     <artifactId>jclouds-project</artifactId>
-    <version>2.7.1-SNAPSHOT</version>
+    <version>2.7.1</version>
     <relativePath>../../project/pom.xml</relativePath>
   </parent>
 
@@ -41,6 +41,17 @@
     <test.azurecompute-arm.identity>app id</test.azurecompute-arm.identity>
     <test.azurecompute-arm.credential>app password</test.azurecompute-arm.credential>
   </properties>
+
+  <build>
+    <plugins>
+      <plugin>
+        <artifactId>maven-deploy-plugin</artifactId>
+        <configuration>
+          <skip>true</skip>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
 
   <dependencies>
     <dependency>

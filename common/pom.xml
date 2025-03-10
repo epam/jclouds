@@ -22,7 +22,7 @@
   <parent>
     <artifactId>jclouds-project</artifactId>
     <groupId>org.apache.jclouds</groupId>
-    <version>2.7.1-SNAPSHOT</version>
+    <version>2.7.1</version>
     <relativePath>../project/pom.xml</relativePath>
   </parent>
   <groupId>org.apache.jclouds.common</groupId>
@@ -31,6 +31,6 @@
   <name>jclouds commons project</name>
   <modules>
     <module>googlecloud</module>
-    <!-- <module>openstack</module> -->
+    <module>openstack</module>
   </modules>
 </project>
