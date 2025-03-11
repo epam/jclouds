@@ -22,13 +22,24 @@
   <parent>
     <groupId>org.apache.jclouds</groupId>
     <artifactId>jclouds-project</artifactId>
-    <version>2.7.1-SNAPSHOT</version>
+    <version>2.7.1</version>
     <relativePath>../../project/pom.xml</relativePath>
   </parent>
   <groupId>org.apache.jclouds.driver</groupId>
   <artifactId>jclouds-slf4j</artifactId>
   <name>jclouds SLF4J Logging Module</name>
   <description>jclouds SLF4J Logging Module</description>
+
+  <build>
+    <plugins>
+      <plugin>
+        <artifactId>maven-deploy-plugin</artifactId>
+        <configuration>
+          <skip>true</skip>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
 
   <dependencies>
     <dependency>

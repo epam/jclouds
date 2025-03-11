@@ -23,7 +23,7 @@
   <parent>
     <groupId>org.apache.jclouds</groupId>
     <artifactId>jclouds-project</artifactId>
-    <version>2.7.1-SNAPSHOT</version>
+    <version>2.7.1</version>
     <relativePath>../../project/pom.xml</relativePath>
   </parent>
 
@@ -39,6 +39,17 @@
     <test.digitalocean2.credential>FIXME</test.digitalocean2.credential>
     <test.digitalocean2.template>osFamily=UBUNTU,os64Bit=true,osVersionMatches=16.*</test.digitalocean2.template>
   </properties>
+
+  <build>
+    <plugins>
+      <plugin>
+        <artifactId>maven-deploy-plugin</artifactId>
+        <configuration>
+          <skip>true</skip>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
 
   <dependencies>
     <dependency>

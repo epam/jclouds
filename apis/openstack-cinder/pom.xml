@@ -22,7 +22,7 @@
   <parent>
     <groupId>org.apache.jclouds</groupId>
     <artifactId>jclouds-project</artifactId>
-    <version>2.7.1-SNAPSHOT</version>
+    <version>2.7.1</version>
     <relativePath>../../project/pom.xml</relativePath>
   </parent>
   <groupId>org.apache.jclouds.api</groupId>
@@ -40,6 +40,17 @@
     <test.openstack-cinder.credential>FIXME_CREDENTIALS</test.openstack-cinder.credential>
     <test.jclouds.keystone.credential-type>passwordCredentials</test.jclouds.keystone.credential-type>
   </properties>
+
+  <build>
+    <plugins>
+      <plugin>
+        <artifactId>maven-deploy-plugin</artifactId>
+        <configuration>
+          <skip>true</skip>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
 
   <dependencies>
     <dependency>

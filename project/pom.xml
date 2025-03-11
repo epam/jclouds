@@ -21,7 +21,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>org.apache.jclouds</groupId>
   <artifactId>jclouds-project</artifactId>
-  <version>2.7.1-SNAPSHOT</version>
+  <version>2.7.1</version>
   <packaging>pom</packaging>
   <name>Apache jclouds Project</name>
   <url>https://jclouds.apache.org/</url>
@@ -726,7 +726,7 @@
               <exclude>**/src/test/resources/**/*.gz</exclude>
               <exclude>**/src/test/resources/**/*.xml</exclude>
               <exclude>**/src/test/resources/**/*.crt</exclude>
-              <exclude>**/src/test/resources/html/*.html</exclude>
+              <exclude>src/test/resources/html/*.html</exclude>
 
               <!-- META-INF/services files -->
               <exclude>**/services/*LoggingModule</exclude>

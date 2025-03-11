@@ -22,7 +22,7 @@
   <parent>
     <groupId>org.apache.jclouds</groupId>
     <artifactId>jclouds-project</artifactId>
-    <version>2.7.1-SNAPSHOT</version>
+    <version>2.7.1</version>
     <relativePath>../../project/pom.xml</relativePath>
   </parent>
   <groupId>org.apache.jclouds.api</groupId>
@@ -37,6 +37,18 @@
     <test.rackspace-cloudloadbalancers.identity>${test.rackspace-us.identity}</test.rackspace-cloudloadbalancers.identity>
     <test.rackspace-cloudloadbalancers.credential>${test.rackspace-us.credential}</test.rackspace-cloudloadbalancers.credential>
   </properties>
+
+  <build>
+    <plugins>
+      <plugin>
+        <artifactId>maven-deploy-plugin</artifactId>
+        <configuration>
+          <skip>true</skip>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+
   <dependencies>
     <dependency>
       <groupId>org.apache.jclouds</groupId>
