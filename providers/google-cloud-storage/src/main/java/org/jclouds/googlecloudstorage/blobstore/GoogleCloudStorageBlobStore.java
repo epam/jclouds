@@ -335,14 +335,10 @@ public final class GoogleCloudStorageBlobStore extends BaseBlobStore {
             template.contentDisposition(contentDisposition);
          }
 
-         // TODO: causes failures with subsequent GET operations:
-         // HTTP/1.1 failed with response: HTTP/1.1 503 Service Unavailable; content: [Service Unavailable]
-/*
          String contentEncoding = contentMetadata.getContentEncoding();
          if (contentEncoding != null) {
             template.contentEncoding(contentEncoding);
          }
-*/
 
          String contentLanguage = contentMetadata.getContentLanguage();
          if (contentLanguage != null) {
