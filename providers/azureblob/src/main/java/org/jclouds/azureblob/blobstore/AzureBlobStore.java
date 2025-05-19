@@ -18,6 +18,7 @@ package org.jclouds.azureblob.blobstore;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 import static org.jclouds.azure.storage.options.ListOptions.Builder.includeMetadata;
+import static org.jclouds.http.Uris.uriBuilder;
 
 import java.io.InputStream;
 import java.net.URI;
@@ -28,10 +29,12 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
+import com.google.common.collect.ImmutableMap;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 
 import org.jclouds.azure.storage.domain.BoundedSet;
+import org.jclouds.azure.storage.util.storageurl.StorageUrlSupplier;
 import org.jclouds.azureblob.AzureBlobClient;
 import org.jclouds.azureblob.blobstore.functions.AzureBlobToBlob;
 import org.jclouds.azureblob.blobstore.functions.BlobPropertiesToBlobMetadata;
@@ -71,6 +74,7 @@ import org.jclouds.blobstore.options.PutOptions;
 import org.jclouds.blobstore.util.BlobUtils;
 import org.jclouds.collect.Memoized;
 import org.jclouds.domain.Location;
+import org.jclouds.http.Uris;
 import org.jclouds.http.options.GetOptions;
 import org.jclouds.io.ContentMetadata;
 import org.jclouds.io.MutableContentMetadata;
@@ -96,6 +100,8 @@ public class AzureBlobStore extends BaseBlobStore {
    private final BlobPropertiesToBlobMetadata blob2BlobMd;
    private final BlobToHttpGetOptions blob2ObjectGetOptions;
 
+   private final URI storageUrl;
+
 
    @Inject
    AzureBlobStore(BlobStoreContext context, BlobUtils blobUtils, Supplier<Location> defaultLocation,
@@ -104,7 +110,7 @@ public class AzureBlobStore extends BaseBlobStore {
             ListOptionsToListBlobsOptions blobStore2AzureContainerListOptions,
             ListBlobsResponseToResourceList azure2BlobStoreResourceList, AzureBlobToBlob azureBlob2Blob,
             BlobToAzureBlob blob2AzureBlob, BlobPropertiesToBlobMetadata blob2BlobMd,
-            BlobToHttpGetOptions blob2ObjectGetOptions) {
+            BlobToHttpGetOptions blob2ObjectGetOptions, StorageUrlSupplier storageUriSupplier) {
       super(context, blobUtils, defaultLocation, locations, slicer);
       this.sync = checkNotNull(sync, "sync");
       this.container2ResourceMd = checkNotNull(container2ResourceMd, "container2ResourceMd");
@@ -115,6 +121,7 @@ public class AzureBlobStore extends BaseBlobStore {
       this.blob2AzureBlob = checkNotNull(blob2AzureBlob, "blob2AzureBlob");
       this.blob2BlobMd = checkNotNull(blob2BlobMd, "blob2BlobMd");
       this.blob2ObjectGetOptions = checkNotNull(blob2ObjectGetOptions, "blob2ObjectGetOptions");
+      this.storageUrl = storageUriSupplier.get();
    }
 
    /**
@@ -269,7 +276,8 @@ public class AzureBlobStore extends BaseBlobStore {
          azureOptions.overrideUserMetadata(userMetadata);
       }
 
-      URI source = context.getSigner().signGetBlob(fromContainer, fromName).getEndpoint();
+      Uris.UriBuilder uriBuilder = uriBuilder(storageUrl).path("{container}/{name}");
+      URI source = uriBuilder.build(ImmutableMap.of("container", fromContainer, "name", fromName), true);
       String eTag = sync.copyBlob(source, toContainer, toName, azureOptions.build());
 
       ContentMetadata contentMetadata = options.contentMetadata();
