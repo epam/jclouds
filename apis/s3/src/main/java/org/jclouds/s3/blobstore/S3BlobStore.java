@@ -20,11 +20,14 @@ import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
 import static org.jclouds.util.Predicates2.retry;
 
+import java.util.Base64;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import com.google.common.hash.HashCode;
 import jakarta.inject.Inject;
 import jakarta.inject.Provider;
 import jakarta.inject.Singleton;
@@ -67,6 +70,7 @@ import org.jclouds.s3.domain.BucketMetadata;
 import org.jclouds.s3.domain.CannedAccessPolicy;
 import org.jclouds.s3.domain.ListMultipartUploadResponse;
 import org.jclouds.s3.domain.ListMultipartUploadsResponse;
+import org.jclouds.s3.domain.ObjectMetadata;
 import org.jclouds.s3.options.CopyObjectOptions;
 import org.jclouds.s3.options.ListBucketOptions;
 import org.jclouds.s3.options.PutBucketOptions;
@@ -92,7 +96,6 @@ public class S3BlobStore extends BaseBlobStore {
    private final BlobToObjectMetadata blob2ObjectMetadata;
    private final BlobToHttpGetOptions blob2ObjectGetOptions;
    private final Provider<FetchBlobMetadata> fetchBlobMetadataProvider;
-
    @Inject
    protected S3BlobStore(BlobStoreContext context, BlobUtils blobUtils, Supplier<Location> defaultLocation,
             @Memoized Supplier<Set<? extends Location>> locations, PayloadSlicer slicer, S3Client sync,
@@ -315,10 +318,35 @@ public class S3BlobStore extends BaseBlobStore {
       }
 
       Map<String, String> userMetadata = options.userMetadata();
+      
+      // Preserve MD5 during copy operations for reliable content identification
+      ObjectMetadata sourceMetadata = sync.headObject(fromContainer, fromName);
+      if (sourceMetadata != null && sourceMetadata.getContentMetadata() != null) {
+         HashCode md5Hash = sourceMetadata.getContentMetadata().getContentMD5AsHashCode();
+         if (md5Hash != null) {
+            // Store MD5 in user metadata to preserve it across copy operations
+            String sourceMD5 = Base64.getEncoder().encodeToString(md5Hash.asBytes());
+            
+            // Create new map only if needed
+            if (userMetadata == null) {
+               userMetadata = new HashMap<>();
+            } else if (!(userMetadata instanceof HashMap)) {
+               // Only create copy if userMetadata is immutable
+               userMetadata = new HashMap<>(userMetadata);
+            }
+            
+            // Only set if not already present to preserve existing MD5
+            if (!userMetadata.containsKey(ObjectToBlobMetadata.MD5_USER_METADATA_KEY)) {
+               userMetadata.put(ObjectToBlobMetadata.MD5_USER_METADATA_KEY, sourceMD5);
+            }
+         }
+      }
+      
       if (userMetadata != null) {
          s3Options.overrideMetadataWith(userMetadata);
       }
 
+      // Perform the copy and return the ETag for backwards compatibility
       return sync.copyObject(fromContainer, fromName, toContainer, toName, s3Options).getETag();
    }
 
