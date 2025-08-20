@@ -16,6 +16,9 @@
  */
 package org.jclouds.s3.blobstore.functions;
 
+import java.util.Base64;
+import java.util.Map;
+
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 
@@ -24,12 +27,17 @@ import org.jclouds.blobstore.domain.StorageType;
 import org.jclouds.blobstore.domain.internal.MutableBlobMetadataImpl;
 import org.jclouds.domain.Location;
 import org.jclouds.http.HttpUtils;
+import org.jclouds.logging.Logger;
 import org.jclouds.s3.domain.ObjectMetadata;
 
 import com.google.common.base.Function;
+import com.google.common.hash.HashCode;
 
 @Singleton
 public class ObjectToBlobMetadata implements Function<ObjectMetadata, MutableBlobMetadata> {
+   private static final Logger logger = Logger.CONSOLE;
+   // User metadata key for preserving original MD5 hash during S3 copy operations
+   public static final String MD5_USER_METADATA_KEY = "content-md5-original";
    private final Function<String, Location> locationOfBucket;
 
    @Inject
@@ -52,6 +60,26 @@ public class ObjectToBlobMetadata implements Function<ObjectMetadata, MutableBlo
       to.setType(StorageType.BLOB);
       to.setSize(from.getContentMetadata().getContentLength());
       to.setTier((from.getStorageClass() == null ? ObjectMetadata.StorageClass.STANDARD : from.getStorageClass()).toTier());
+      
+      // Check for MD5 in user metadata if not in content metadata
+      if (to.getContentMetadata().getContentMD5AsHashCode() == null) {
+         Map<String, String> userMeta = from.getUserMetadata();
+         if (userMeta != null) {
+            String md5Base64 = userMeta.get(MD5_USER_METADATA_KEY);
+            if (md5Base64 != null) {
+               try {
+                  byte[] md5Bytes = Base64.getDecoder().decode(md5Base64);
+                  HashCode md5HashCode = HashCode.fromBytes(md5Bytes);
+                  to.getContentMetadata().setContentMD5(md5HashCode);
+               } catch (Exception e) {
+                  // MD5 might be in wrong format, log and continue
+                  logger.debug("Failed to restore MD5 from user metadata for %s: %s", 
+                        from.getKey(), e.getMessage());
+               }
+            }
+         }
+      }
+      
       return to;
    }
 }
