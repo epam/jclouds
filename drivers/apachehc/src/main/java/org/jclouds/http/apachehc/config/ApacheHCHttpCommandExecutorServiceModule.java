@@ -24,27 +24,21 @@ import java.security.NoSuchAlgorithmException;
 
 import jakarta.inject.Named;
 import jakarta.inject.Singleton;
+import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;
 
-import org.apache.http.HttpVersion;
-import org.apache.http.client.HttpClient;
-import org.apache.http.conn.ClientConnectionManager;
-import org.apache.http.conn.params.ConnManagerParams;
-import org.apache.http.conn.params.ConnPerRoute;
-import org.apache.http.conn.params.ConnPerRouteBean;
-import org.apache.http.conn.scheme.PlainSocketFactory;
-import org.apache.http.conn.scheme.Scheme;
-import org.apache.http.conn.scheme.SchemeRegistry;
-import org.apache.http.conn.ssl.SSLSocketFactory;
-import org.apache.http.conn.ssl.X509HostnameVerifier;
-import org.apache.http.impl.client.DefaultHttpClient;
-import org.apache.http.impl.conn.ProxySelectorRoutePlanner;
-import org.apache.http.impl.conn.tsccm.ThreadSafeClientConnManager;
-import org.apache.http.params.BasicHttpParams;
-import org.apache.http.params.CoreConnectionPNames;
-import org.apache.http.params.CoreProtocolPNames;
-import org.apache.http.params.HttpParams;
-import org.apache.http.params.HttpProtocolParams;
+import org.apache.hc.client5.http.classic.HttpClient;
+import org.apache.hc.client5.http.config.ConnectionConfig;
+import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
+import org.apache.hc.client5.http.impl.classic.HttpClients;
+import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
+import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
+import org.apache.hc.client5.http.impl.routing.SystemDefaultRoutePlanner;
+import org.apache.hc.client5.http.ssl.DefaultHostnameVerifier;
+import org.apache.hc.client5.http.ssl.NoopHostnameVerifier;
+import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory;
+import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactoryBuilder;
+import org.apache.hc.core5.util.Timeout;
 import org.jclouds.http.HttpCommandExecutorService;
 import org.jclouds.http.HttpUtils;
 import org.jclouds.http.apachehc.ApacheHCHttpCommandExecutorService;
@@ -74,37 +68,8 @@ public class ApacheHCHttpCommandExecutorServiceModule extends AbstractModule {
 
    @Singleton
    @Provides
-   final HttpParams newBasicHttpParams(HttpUtils utils) {
-      BasicHttpParams params = new BasicHttpParams();
-
-      params.setIntParameter(CoreConnectionPNames.SOCKET_BUFFER_SIZE, 8 * 1024).setBooleanParameter(
-               CoreConnectionPNames.STALE_CONNECTION_CHECK, true).setBooleanParameter(CoreConnectionPNames.TCP_NODELAY,
-               true).setParameter(CoreProtocolPNames.ORIGIN_SERVER, "jclouds/1.0");
-
-      if (utils.getConnectionTimeout() > 0) {
-         params.setIntParameter(CoreConnectionPNames.CONNECTION_TIMEOUT, utils.getConnectionTimeout());
-      }
-
-      if (utils.getSocketOpenTimeout() > 0) {
-         params.setIntParameter(CoreConnectionPNames.SO_TIMEOUT, utils.getSocketOpenTimeout());
-      }
-
-      if (utils.getMaxConnections() > 0)
-         ConnManagerParams.setMaxTotalConnections(params, utils.getMaxConnections());
-
-      if (utils.getMaxConnectionsPerHost() > 0) {
-         ConnPerRoute connectionsPerRoute = new ConnPerRouteBean(utils.getMaxConnectionsPerHost());
-         ConnManagerParams.setMaxConnectionsPerRoute(params, connectionsPerRoute);
-      }
-      HttpProtocolParams.setVersion(params, HttpVersion.HTTP_1_1);
-      return params;
-   }
-
-   @Singleton
-   @Provides
-   final X509HostnameVerifier newHostnameVerifier(HttpUtils utils) {
-      return utils.relaxHostname() ? SSLSocketFactory.ALLOW_ALL_HOSTNAME_VERIFIER
-               : SSLSocketFactory.STRICT_HOSTNAME_VERIFIER;
+   final HostnameVerifier newHostnameVerifier(HttpUtils utils) {
+      return utils.relaxHostname() ? NoopHostnameVerifier.INSTANCE : new DefaultHostnameVerifier();
    }
 
    @Singleton
@@ -121,21 +86,35 @@ public class ApacheHCHttpCommandExecutorServiceModule extends AbstractModule {
 
    @Singleton
    @Provides
-   final ClientConnectionManager newClientConnectionManager(HttpParams params, X509HostnameVerifier verifier,
-            SSLContext context, Closer closer) throws NoSuchAlgorithmException, KeyManagementException {
+   final PoolingHttpClientConnectionManager newClientConnectionManager(HttpUtils utils, HostnameVerifier verifier,
+            SSLContext context, Closer closer) {
 
-      SchemeRegistry schemeRegistry = new SchemeRegistry();
-      schemeRegistry.register(new Scheme("http", PlainSocketFactory.getSocketFactory(), 80));
+      SSLConnectionSocketFactory sslSocketFactory = SSLConnectionSocketFactoryBuilder.create()
+            .setSslContext(context).setHostnameVerifier(verifier).build();
 
-      SSLSocketFactory sf = new SSLSocketFactory(context);
-      sf.setHostnameVerifier(verifier);
-      schemeRegistry.register(new Scheme("https", sf, 443));
+      ConnectionConfig.Builder connectionConfig = ConnectionConfig.custom();
+      if (utils.getConnectionTimeout() > 0) {
+         connectionConfig.setConnectTimeout(Timeout.ofMilliseconds(utils.getConnectionTimeout()));
+      }
+      if (utils.getSocketOpenTimeout() > 0) {
+         connectionConfig.setSocketTimeout(Timeout.ofMilliseconds(utils.getSocketOpenTimeout()));
+      }
 
-      final ClientConnectionManager cm = new ThreadSafeClientConnManager(params, schemeRegistry);
+      PoolingHttpClientConnectionManagerBuilder builder = PoolingHttpClientConnectionManagerBuilder.create()
+            .setSSLSocketFactory(sslSocketFactory).setDefaultConnectionConfig(connectionConfig.build());
+
+      if (utils.getMaxConnections() > 0) {
+         builder.setMaxConnTotal(utils.getMaxConnections());
+      }
+      if (utils.getMaxConnectionsPerHost() > 0) {
+         builder.setMaxConnPerRoute(utils.getMaxConnectionsPerHost());
+      }
+
+      final PoolingHttpClientConnectionManager cm = builder.build();
       closer.addToClose(new Closeable() {
          @Override
          public void close() throws IOException {
-            cm.shutdown();
+            cm.close();
          }
       });
       return cm;
@@ -143,14 +122,12 @@ public class ApacheHCHttpCommandExecutorServiceModule extends AbstractModule {
 
    @Provides
    @Singleton
-   final HttpClient newDefaultHttpClient(ProxyConfig config, HttpParams params, ClientConnectionManager cm) {
-      DefaultHttpClient client = new DefaultHttpClient(cm, params);
+   final HttpClient newDefaultHttpClient(ProxyConfig config, PoolingHttpClientConnectionManager cm) {
+      HttpClientBuilder builder = HttpClients.custom().setConnectionManager(cm);
       if (config.useSystem()) {
-         ProxySelectorRoutePlanner routePlanner = new ProxySelectorRoutePlanner(client.getConnectionManager()
-                  .getSchemeRegistry(), ProxySelector.getDefault());
-         client.setRoutePlanner(routePlanner);
+         builder.setRoutePlanner(new SystemDefaultRoutePlanner(ProxySelector.getDefault()));
       }
-      return client;
+      return builder.build();
    }
 
    protected void bindClient() {
