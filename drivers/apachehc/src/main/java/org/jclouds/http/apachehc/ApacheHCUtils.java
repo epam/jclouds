@@ -19,29 +19,28 @@ package org.jclouds.http.apachehc;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.UnsupportedEncodingException;
 import java.util.Map;
 import java.util.Set;
 
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.HttpMethod;
 
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpEntityEnclosingRequest;
-import org.apache.http.client.methods.HttpDelete;
-import org.apache.http.client.methods.HttpEntityEnclosingRequestBase;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.client.methods.HttpHead;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.methods.HttpPut;
-import org.apache.http.client.methods.HttpRequestBase;
-import org.apache.http.client.methods.HttpUriRequest;
-import org.apache.http.entity.ByteArrayEntity;
-import org.apache.http.entity.FileEntity;
-import org.apache.http.entity.InputStreamEntity;
-import org.apache.http.entity.StringEntity;
-import org.apache.http.params.CoreProtocolPNames;
-import org.apache.http.util.EntityUtils;
+import org.apache.hc.client5.http.classic.methods.HttpDelete;
+import org.apache.hc.client5.http.classic.methods.HttpGet;
+import org.apache.hc.client5.http.classic.methods.HttpHead;
+import org.apache.hc.client5.http.classic.methods.HttpPost;
+import org.apache.hc.client5.http.classic.methods.HttpPut;
+import org.apache.hc.client5.http.classic.methods.HttpUriRequest;
+import org.apache.hc.client5.http.classic.methods.HttpUriRequestBase;
+import org.apache.hc.client5.http.config.RequestConfig;
+import org.apache.hc.core5.http.ClassicHttpRequest;
+import org.apache.hc.core5.http.ContentType;
+import org.apache.hc.core5.http.HttpEntity;
+import org.apache.hc.core5.http.io.entity.ByteArrayEntity;
+import org.apache.hc.core5.http.io.entity.EntityUtils;
+import org.apache.hc.core5.http.io.entity.FileEntity;
+import org.apache.hc.core5.http.io.entity.InputStreamEntity;
+import org.apache.hc.core5.http.io.entity.StringEntity;
 import org.jclouds.JcloudsVersion;
 import org.jclouds.http.HttpRequest;
 import org.jclouds.io.ContentMetadataCodec;
@@ -60,7 +59,7 @@ import com.google.common.net.HttpHeaders;
 @Singleton
 public class ApacheHCUtils {
    //TODO: look up httpclient version
-   public static final String USER_AGENT = String.format("jclouds/%s httpclient/%s", JcloudsVersion.get(), "4.1.1");
+   public static final String USER_AGENT = String.format("jclouds/%s httpclient/%s", JcloudsVersion.get(), "5.4.3");
    
    private final ContentMetadataCodec contentMetadataCodec;
 
@@ -69,7 +68,7 @@ public class ApacheHCUtils {
    }
    
    public HttpUriRequest convertToApacheRequest(HttpRequest request) {
-      HttpUriRequest apacheRequest;
+      HttpUriRequestBase apacheRequest;
       if (request.getMethod().equals(HttpMethod.HEAD)) {
          apacheRequest = new HttpHead(request.getEndpoint());
       } else if (request.getMethod().equals(HttpMethod.GET)) {
@@ -78,39 +77,18 @@ public class ApacheHCUtils {
          apacheRequest = new HttpDelete(request.getEndpoint());
       } else if (request.getMethod().equals(HttpMethod.PUT)) {
          apacheRequest = new HttpPut(request.getEndpoint());
-         apacheRequest.getParams().setBooleanParameter(CoreProtocolPNames.USE_EXPECT_CONTINUE, true);
+         apacheRequest.setConfig(RequestConfig.custom().setExpectContinueEnabled(true).build());
       } else if (request.getMethod().equals(HttpMethod.POST)) {
          apacheRequest = new HttpPost(request.getEndpoint());
       } else {
-         final String method = request.getMethod();
-         if (request.getPayload() != null)
-            apacheRequest = new HttpEntityEnclosingRequestBase() {
-
-               @Override
-               public String getMethod() {
-                  return method;
-               }
-
-            };
-         else
-            apacheRequest = new HttpRequestBase() {
-
-               @Override
-               public String getMethod() {
-                  return method;
-               }
-
-            };
-         HttpRequestBase.class.cast(apacheRequest).setURI(request.getEndpoint());
+         apacheRequest = new HttpUriRequestBase(request.getMethod(), request.getEndpoint());
       }
       Payload payload = request.getPayload();
 
       // Since we may remove headers, ensure they are added to the apache
       // request after this block
-      if (apacheRequest instanceof HttpEntityEnclosingRequest) {
-         if (payload != null) {
-            addEntityForContent(HttpEntityEnclosingRequest.class.cast(apacheRequest), payload);
-         }
+      if (payload != null) {
+         addEntityForContent(apacheRequest, payload);
       } else {
          apacheRequest.addHeader(HttpHeaders.CONTENT_LENGTH, "0");
       }
@@ -125,33 +103,23 @@ public class ApacheHCUtils {
       return apacheRequest;
    }
 
-   public void addEntityForContent(HttpEntityEnclosingRequest apacheRequest, Payload payload) {
+   public void addEntityForContent(ClassicHttpRequest apacheRequest, Payload payload) {
       payload = payload instanceof DelegatingPayload ? DelegatingPayload.class.cast(payload).getDelegate() : payload;
+      ContentType contentType = contentType(payload.getContentMetadata().getContentType());
       if (payload instanceof StringPayload) {
-         StringEntity nStringEntity = null;
-         try {
-            nStringEntity = new StringEntity((String) payload.getRawContent());
-         } catch (UnsupportedEncodingException e) {
-            throw new UnsupportedOperationException("Encoding not supported", e);
-         }
-         nStringEntity.setContentType(payload.getContentMetadata().getContentType());
-         apacheRequest.setEntity(nStringEntity);
+         apacheRequest.setEntity(new StringEntity((String) payload.getRawContent(), contentType));
       } else if (payload instanceof FilePayload) {
-         apacheRequest.setEntity(new FileEntity((File) payload.getRawContent(), payload.getContentMetadata()
-               .getContentType()));
+         apacheRequest.setEntity(new FileEntity((File) payload.getRawContent(), contentType));
       } else if (payload instanceof ByteArrayPayload) {
-         ByteArrayEntity Entity = new ByteArrayEntity((byte[]) payload.getRawContent());
-         Entity.setContentType(payload.getContentMetadata().getContentType());
-         apacheRequest.setEntity(Entity);
+         apacheRequest.setEntity(new ByteArrayEntity((byte[]) payload.getRawContent(), contentType));
       } else {
          InputStream inputStream = payload.getInput();
          if (payload.getContentMetadata().getContentLength() == null)
             throw new IllegalArgumentException("you must specify size when content is an InputStream");
-         InputStreamEntity entity = new InputStreamEntity(inputStream, payload.getContentMetadata().getContentLength());
-         entity.setContentType(payload.getContentMetadata().getContentType());
-         apacheRequest.setEntity(entity);
+         apacheRequest.setEntity(new InputStreamEntity(inputStream, payload.getContentMetadata().getContentLength(),
+               contentType));
       }
-      
+
       // TODO Reproducing old behaviour exactly; ignoring Content-Type, Content-Length and Content-MD5
       Set<String> desiredHeaders = ImmutableSet.of("Content-Disposition", "Content-Encoding", "Content-Language", "Expires");
       MutableContentMetadata md = payload.getContentMetadata();
@@ -164,11 +132,15 @@ public class ApacheHCUtils {
       assert apacheRequest.getEntity() != null;
    }
 
+   private static ContentType contentType(String contentType) {
+      return contentType != null ? ContentType.parse(contentType) : null;
+   }
+
    public static class HttpEntityPayload extends BasePayload<HttpEntity> {
 
       HttpEntityPayload(HttpEntity content) {
          super(content);
-         getContentMetadata().setContentType(content.getContentType().getValue());
+         getContentMetadata().setContentType(content.getContentType());
          getContentMetadata().setContentLength(content.getContentLength());
       }
 

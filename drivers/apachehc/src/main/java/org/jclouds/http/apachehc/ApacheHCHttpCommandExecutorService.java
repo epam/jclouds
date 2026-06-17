@@ -23,16 +23,18 @@ import static org.jclouds.http.HttpUtils.filterOutContentHeaders;
 
 import java.io.IOException;
 import java.net.URI;
+import java.net.URISyntaxException;
 
 import jakarta.inject.Inject;
 import jakarta.inject.Named;
 
-import org.apache.http.Header;
-import org.apache.http.HttpHeaders;
-import org.apache.http.HttpHost;
-import org.apache.http.client.ClientProtocolException;
-import org.apache.http.client.HttpClient;
-import org.apache.http.client.methods.HttpUriRequest;
+import org.apache.hc.client5.http.ClientProtocolException;
+import org.apache.hc.client5.http.classic.HttpClient;
+import org.apache.hc.client5.http.classic.methods.HttpUriRequest;
+import org.apache.hc.core5.http.ClassicHttpResponse;
+import org.apache.hc.core5.http.Header;
+import org.apache.hc.core5.http.HttpHeaders;
+import org.apache.hc.core5.http.HttpHost;
 import org.jclouds.http.HttpRequest;
 import org.jclouds.http.HttpResponse;
 import org.jclouds.http.HttpUtils;
@@ -85,7 +87,7 @@ public class ApacheHCHttpCommandExecutorService extends BaseHttpCommandExecutorS
 
    @Override
    protected HttpResponse invoke(HttpUriRequest nativeRequest) throws IOException {
-      org.apache.http.HttpResponse apacheResponse = executeRequest(nativeRequest);
+      ClassicHttpResponse apacheResponse = executeRequest(nativeRequest);
 
       Payload payload = null;
       if (apacheResponse.getEntity() != null) {
@@ -94,37 +96,44 @@ public class ApacheHCHttpCommandExecutorService extends BaseHttpCommandExecutorS
             if (apacheResponse.getEntity().getContentLength() >= 0)
                payload.getContentMetadata().setContentLength(apacheResponse.getEntity().getContentLength());
             if (apacheResponse.getEntity().getContentType() != null)
-               payload.getContentMetadata().setContentType(apacheResponse.getEntity().getContentType().getValue());
+               payload.getContentMetadata().setContentType(apacheResponse.getEntity().getContentType());
          } catch (IOException e) {
-            logger.warn(e, "couldn't receive payload for request: %s", nativeRequest.getRequestLine());
+            logger.warn(e, "couldn't receive payload for request: %s", requestUri(nativeRequest));
             throw e;
          }
       } else {
          // still create a payload object on no entity responses (ex: to HEAD requests) as this is apparently where JClouds is
-         // exclusively looking for the content metadata (in order to fill in the BlobMetadata with correct size) 
+         // exclusively looking for the content metadata (in order to fill in the BlobMetadata with correct size)
          payload = Payloads.newStringPayload("");
       }
-      
+
       Multimap<String, String> headers = LinkedHashMultimap.create();
-      for (Header header : apacheResponse.getAllHeaders()) {
+      for (Header header : apacheResponse.getHeaders()) {
          headers.put(header.getName(), header.getValue());
       }
-      
+
       contentMetadataCodec.fromHeaders(payload.getContentMetadata(), headers);
       headers = filterOutContentHeaders(headers);
-      
-      return HttpResponse.builder().statusCode(apacheResponse.getStatusLine().getStatusCode())
-                                   .message(apacheResponse.getStatusLine().getReasonPhrase())
+
+      return HttpResponse.builder().statusCode(apacheResponse.getCode())
+                                   .message(apacheResponse.getReasonPhrase())
                                    .payload(payload)
                                    .headers(headers).build();
    }
 
-   private org.apache.http.HttpResponse executeRequest(HttpUriRequest nativeRequest) throws IOException,
+   private ClassicHttpResponse executeRequest(HttpUriRequest nativeRequest) throws IOException,
          ClientProtocolException {
-      URI endpoint = URI.create(nativeRequest.getRequestLine().getUri());
-      HttpHost host = new HttpHost(endpoint.getHost(), endpoint.getPort(), endpoint.getScheme());
-      org.apache.http.HttpResponse nativeResponse = client.execute(host, nativeRequest);
-      return nativeResponse;
+      URI endpoint = URI.create(requestUri(nativeRequest));
+      HttpHost host = new HttpHost(endpoint.getScheme(), endpoint.getHost(), endpoint.getPort());
+      return client.executeOpen(host, nativeRequest, null);
+   }
+
+   private static String requestUri(HttpUriRequest nativeRequest) {
+      try {
+         return nativeRequest.getUri().toString();
+      } catch (URISyntaxException e) {
+         throw new IllegalArgumentException(e);
+      }
    }
 
    @Override
